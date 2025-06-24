@@ -29,8 +29,15 @@ def validate_environment_variables():
     
     if missing_vars:
         print(f"❌ 以下の環境変数が設定されていません: {', '.join(missing_vars)}")
-        print("💡 .envファイルを確認してください。")
+        print("💡 .envファイルが存在しない可能性があります。以下を確認してください:")
+        print("   1. .envファイルを作成: cp .env.example .env")
+        print("   2. .envファイルに実際の値を設定")
+        print("   3. SLACK_BOT_TOKENはxoxb-で始まる形式である必要があります")
+        print("   4. ボットがチャンネルに招待されている必要があります")
         return False
+    
+    if SLACK_BOT_TOKEN and not SLACK_BOT_TOKEN.startswith('xoxb-'):
+        print("⚠️ SLACK_BOT_TOKENの形式が正しくない可能性があります（xoxb-で始まる必要があります）")
     
     if not OPENAI_API_KEY:
         print("⚠️ OPENAI_API_KEYが設定されていません。AI要約機能は無効になります。")
@@ -73,16 +80,23 @@ def fetch_today_messages():
         if data.get("ok"):
             if data.get("messages"):
                 messages = [msg.get("text", "") for msg in data["messages"] if msg.get("text")]
+                print(f"✅ {len(messages)}件のメッセージを取得しました。")
                 return messages
             else:
                 print("📭 今日はまだメッセージがありません。")
                 return []
         else:
             error_code = data.get("error", "unknown_error")
+            print(f"⚠️ メッセージが取得できませんでした。エラー内容: {error_code}")
+            
             if error_code == "invalid_auth":
                 print("❌ Slack認証エラー: SLACK_BOT_TOKENが無効です。")
-                print("💡 正しいSlack Bot Tokenを.envファイルに設定してください。")
-                print("💡 トークンの権限に'channels:history'が含まれているか確認してください。")
+                print("💡 以下を確認してください:")
+                print("   - .envファイルが存在し、正しい値が設定されているか")
+                print("   - トークンがxoxb-で始まっているか")
+                print("   - トークンが正しくコピーされているか（余分なスペースなど）")
+                print("   - トークンの権限に'channels:history'が含まれているか")
+                print("💡 デバッグスクリプトを実行: python debug_auth.py")
             elif error_code == "channel_not_found":
                 print("❌ チャンネルが見つかりません: CHANNEL_IDを確認してください。")
             elif error_code == "not_in_channel":
