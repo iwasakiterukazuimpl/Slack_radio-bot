@@ -17,6 +17,26 @@ SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
+def validate_environment_variables():
+    """環境変数の設定を確認する"""
+    missing_vars = []
+    
+    if not SLACK_BOT_TOKEN:
+        missing_vars.append("SLACK_BOT_TOKEN")
+    
+    if not CHANNEL_ID:
+        missing_vars.append("CHANNEL_ID")
+    
+    if missing_vars:
+        print(f"❌ 以下の環境変数が設定されていません: {', '.join(missing_vars)}")
+        print("💡 .envファイルを確認してください。")
+        return False
+    
+    if not OPENAI_API_KEY:
+        print("⚠️ OPENAI_API_KEYが設定されていません。AI要約機能は無効になります。")
+    
+    return True
+
 if OPENAI_API_KEY:
     openai_client = OpenAI(api_key=OPENAI_API_KEY)
 else:
@@ -24,6 +44,9 @@ else:
 
 def fetch_today_messages():
     """今日のSlackメッセージを取得する（一時的な変更）"""
+    if not validate_environment_variables():
+        return []
+    
     JST = timezone(timedelta(hours=9))
     now = datetime.now(JST)
     today = now
@@ -43,14 +66,32 @@ def fetch_today_messages():
         "limit": 100
     }
     
-    response = requests.get("https://slack.com/api/conversations.history", headers=headers, params=params)
-    data = response.json()
-    
-    if data.get("ok") and data.get("messages"):
-        messages = [msg.get("text", "") for msg in data["messages"] if msg.get("text")]
-        return messages
-    else:
-        print("⚠️ メッセージが取得できませんでした。エラー内容:", data.get("error"))
+    try:
+        response = requests.get("https://slack.com/api/conversations.history", headers=headers, params=params)
+        data = response.json()
+        
+        if data.get("ok"):
+            if data.get("messages"):
+                messages = [msg.get("text", "") for msg in data["messages"] if msg.get("text")]
+                return messages
+            else:
+                print("📭 今日はまだメッセージがありません。")
+                return []
+        else:
+            error_code = data.get("error", "unknown_error")
+            if error_code == "invalid_auth":
+                print("❌ Slack認証エラー: SLACK_BOT_TOKENが無効です。")
+                print("💡 正しいSlack Bot Tokenを.envファイルに設定してください。")
+                print("💡 トークンの権限に'channels:history'が含まれているか確認してください。")
+            elif error_code == "channel_not_found":
+                print("❌ チャンネルが見つかりません: CHANNEL_IDを確認してください。")
+            elif error_code == "not_in_channel":
+                print("❌ ボットがチャンネルに参加していません。ボットをチャンネルに招待してください。")
+            else:
+                print(f"❌ Slack API エラー: {error_code}")
+            return []
+    except requests.exceptions.RequestException as e:
+        print(f"❌ ネットワークエラー: {str(e)}")
         return []
 
 def create_radio_summary(messages):
@@ -128,12 +169,13 @@ def post_to_slack(audio_filename, summary_text):
 def main():
     """メイン処理: 今日のメッセージを取得→要約→音声化→投稿（一時的な変更）"""
     print("🎙️ Slackラジオボット開始")
+    print("🔧 環境設定を確認中...")
     
     print("📥 今日のメッセージを取得中...")
     messages = fetch_today_messages()
     
     if not messages:
-        print("📭 今日のメッセージがありませんでした。")
+        print("📭 処理を終了します。")
         return
     
     print(f"📝 {len(messages)}件のメッセージを取得しました。")
