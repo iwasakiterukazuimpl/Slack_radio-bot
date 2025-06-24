@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Slack Radio Bot - 統合版
-前日のSlack投稿を取得し、ラジオ風に要約して音声ファイルを作成・投稿するボット
+今日のSlack投稿を取得し、ラジオ風に要約して音声ファイルを作成・投稿するボット（一時的に今日のメッセージを取得）
 """
 
 import os
@@ -22,14 +22,14 @@ if OPENAI_API_KEY:
 else:
     openai_client = None
 
-def fetch_yesterday_messages():
-    """前日のSlackメッセージを取得する"""
+def fetch_today_messages():
+    """今日のSlackメッセージを取得する（一時的な変更）"""
     JST = timezone(timedelta(hours=9))
     now = datetime.now(JST)
-    yesterday = now - timedelta(days=1)
+    today = now
     
-    start_ts = yesterday.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
-    end_ts = yesterday.replace(hour=23, minute=59, second=59, microsecond=0).timestamp()
+    start_ts = today.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+    end_ts = today.replace(hour=23, minute=59, second=59, microsecond=0).timestamp()
     
     headers = {
         "Authorization": f"Bearer {SLACK_BOT_TOKEN}"
@@ -56,7 +56,7 @@ def fetch_yesterday_messages():
 def create_radio_summary(messages):
     """メッセージをラジオ風に要約する"""
     if not messages:
-        return "昨日は特に投稿がありませんでした。"
+        return "今日は特に投稿がありませんでした。"
     
     if not openai_client:
         print("⚠️ OpenAI API キーが設定されていません。")
@@ -65,7 +65,7 @@ def create_radio_summary(messages):
     messages_text = "\n".join(messages)
     
     prompt = f"""
-あなたは人気ラジオDJです。以下のSlackチャンネルの昨日の投稿内容を、明るく親しみやすいラジオ番組風に要約してください。
+あなたは人気ラジオDJです。以下のSlackチャンネルの今日の投稿内容を、明るく親しみやすいラジオ番組風に要約してください。
 
 投稿内容:
 {messages_text}
@@ -115,8 +115,8 @@ def post_to_slack(audio_filename, summary_text):
         response = client.files_upload_v2(
             channel=CHANNEL_ID,
             file=audio_filename,
-            title="📻 昨日のラジオまとめ",
-            initial_comment=f"🎧 昨日の投稿をラジオ風にまとめました！\n\n要約:\n{summary_text[:200]}..."
+            title="📻 今日のラジオまとめ",
+            initial_comment=f"🎧 今日の投稿をラジオ風にまとめました！\n\n要約:\n{summary_text[:200]}..."
         )
         
         print("✅ Slackに音声ファイルを投稿しました！")
@@ -126,14 +126,14 @@ def post_to_slack(audio_filename, summary_text):
         return False
 
 def main():
-    """メイン処理: 前日のメッセージを取得→要約→音声化→投稿"""
+    """メイン処理: 今日のメッセージを取得→要約→音声化→投稿（一時的な変更）"""
     print("🎙️ Slackラジオボット開始")
     
-    print("📥 前日のメッセージを取得中...")
-    messages = fetch_yesterday_messages()
+    print("📥 今日のメッセージを取得中...")
+    messages = fetch_today_messages()
     
     if not messages:
-        print("📭 前日のメッセージがありませんでした。")
+        print("📭 今日のメッセージがありませんでした。")
         return
     
     print(f"📝 {len(messages)}件のメッセージを取得しました。")
